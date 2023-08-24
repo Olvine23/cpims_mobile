@@ -1,21 +1,29 @@
+import 'package:cpims_mobile/providers/auth_provider.dart';
 import 'package:cpims_mobile/providers/ui_provider.dart';
 import 'package:cpims_mobile/screens/auth/login_screen.dart';
 import 'package:cpims_mobile/screens/homepage/home_page.dart';
+import 'package:cpims_mobile/screens/splash_screen.dart';
+import 'package:cpims_mobile/services/auth_service.dart';
 import 'package:cpims_mobile/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/route_manager.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-
-// import 'package:path_provider/path_provider.dart';
-// import 'package:hive/hive.dart';
-
-// final prefs = await SharedPreferences.getInstance();
 
 void main() async {
-  runApp(const CPIMS());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (context) => AuthProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => UIProvider(),
+        ),
+      ],
+      child: const CPIMS(),
+    ),
+  );
 }
 
 class CPIMS extends StatefulWidget {
@@ -29,27 +37,9 @@ class _CPIMSState extends State<CPIMS> {
   @override
   void initState() {
     super.initState();
-    _checkLogin();
   }
 
-  _checkLogin() async {
-    final prefs = await SharedPreferences.getInstance();
-    // await prefs.remove('authenticated');
-
-    var authKey = prefs.getString('authenticated');
-
-    if (authKey != null) {
-      Get.to(() => const Homepage(),
-          transition: Transition.fade,
-          duration: const Duration(milliseconds: 2000));
-    } else {
-      Get.to(() => const LoginScreen(),
-          transition: Transition.fade,
-          duration: const Duration(milliseconds: 1000));
-    }
-
-    return prefs.getString('authenticated');
-  }
+  final AuthService authService = AuthService(AuthProvider());
 
   // This widget is the root of your application.
   @override
@@ -59,21 +49,30 @@ class _CPIMSState extends State<CPIMS> {
       minTextAdapt: true,
       splitScreenMode: true,
       builder: (context, child) {
-        return MultiProvider(
-          providers: [
-            ChangeNotifierProvider(create: (_) => UIProvider()),
-          ],
-          child: GetMaterialApp(
-            title: 'CPIMS',
-            debugShowCheckedModeBanner: false,
-            theme: appTheme(),
-            home: child,
+        return GetMaterialApp(
+          title: 'CPIMS',
+          debugShowCheckedModeBanner: false,
+          theme: appTheme(),
+          home: Builder(
+            builder: (context) {
+              return FutureBuilder(
+                future: authService.verifyToken(context: context),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.done) {
+                    return Provider.of<AuthProvider>(context, listen: false)
+                            .user!
+                            .accessToken
+                            .isNotEmpty
+                        ? const Homepage()
+                        : const LoginScreen();
+                  }
+                  return const SplashScreen();
+                },
+              );
+            },
           ),
         );
       },
-      child:
-          // const Homepage()
-          const LoginScreen(),
     );
   }
 }
